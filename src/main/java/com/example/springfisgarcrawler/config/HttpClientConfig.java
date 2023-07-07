@@ -11,8 +11,6 @@ import java.util.Objects;
 @Configuration
 public class HttpClientConfig {
 
-
-
     @Bean()
     public HttpClient httpClient() {
         if (Objects.isNull(CookieHandler.getDefault())) {
