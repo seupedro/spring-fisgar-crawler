@@ -25,9 +25,16 @@ public class SpringFisgarCrawlerApp implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
+        this.validateInput(args);
         // Start setting the JSESSIONID auth cookie
         cookieService.setAuthCookie();
         // Then launches the rocket! 🚀🔥
-        crawlerService.launch();
+        crawlerService.launch(args);
+    }
+
+    private void validateInput(String[] args) {
+        if (args.length != 2) {
+            throw new RuntimeException("You must provide the inicial and the final iptu value as input");
+        }
     }
 }

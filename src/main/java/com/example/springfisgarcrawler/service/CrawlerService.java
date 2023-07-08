@@ -2,6 +2,7 @@ package com.example.springfisgarcrawler.service;
 
 import com.example.springfisgarcrawler.context.CrawlerContext;
 import com.example.springfisgarcrawler.executor.HttpExecutor;
+import org.apache.logging.log4j.util.Strings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -10,7 +11,8 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.time.Duration;
-import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.IntStream;
 
 @Service
@@ -37,16 +39,23 @@ public class CrawlerService {
         this.httpExecutor = httpExecutor;
     }
 
-    public void launch() {
-        List<CrawlerContext> results = IntStream.range(0, 10000000)
-                .mapToObj(this::toContext)
-                .peek(this::toBodyString)
-                .peek(this::toPostRequest)
-                .peek(httpExecutor::toResponse)
-                .parallel()
-                .toList();
+    public void launch(String[] args) {
+        int start = Integer.parseInt(args[0]);
+        int end = Integer.parseInt(args[1]);
 
-        this.generateCsv(results);
+        IntStream.range(start, end).forEach(this::toExecutionPlan);
+        csvService.terminate();
+        logger.info("[Final Report] Execution Completed: ✅");
+    }
+
+    private void toExecutionPlan(Integer i) {
+        Optional.of(i)
+                .map(this::toContext)
+                .map(this::toBodyString)
+                .map(this::toPostRequest)
+                .map(httpExecutor::toResponse)
+                .filter(this::relevantResponse)
+                .ifPresent(csvService::writeCsvFile);
     }
 
     private CrawlerContext toContext(int index) {
@@ -78,22 +87,8 @@ public class CrawlerService {
         return context;
     }
 
-    private void generateCsv(List<CrawlerContext> sortedResults) {
-        List<CrawlerContext> successResults = sortedResults.stream().filter(CrawlerContext::getCompleted).toList();
-        csvService.writeCsvFile(successResults, "osasco-iptu-ok");
-
-        List<CrawlerContext> failedResults = sortedResults.stream().filter(context -> !context.getCompleted()).toList();
-        csvService.writeCsvFile(failedResults, "osasco-iptu-fail");
-
-        logFinalReport(successResults.size(), failedResults.size());
-    }
-
-    private void logFinalReport(Integer totalSuccess, Integer totalFailed) {
-        logger.info("[Final Report] Execution Completed: ✅");
-        logger.info("[Final Report] Total requests successfully executed: " + totalSuccess);
-        logger.info("[Final Report] Total requests successfully failed:   " + totalFailed);
-
-        float percentage = ((float) totalSuccess / (totalFailed + totalSuccess)) * 100;
-        logger.info(String.format("[Final Report] Total utilization:      %.2f%%", percentage));
+    private boolean relevantResponse(CrawlerContext context) {
+        String requestBody = context.getRequestBody();
+        return Objects.nonNull(requestBody) && !Strings.isBlank(requestBody);
     }
 }
